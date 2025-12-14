@@ -5,7 +5,7 @@ export type Status = 'todo' | 'in-progress' | 'done';
 export interface Task {
   id: string;
   title: string;
-  description?: string;
+  description?: string | undefined
   priority: Priority;
   status: Status;
   createdAt: string; // ISO date

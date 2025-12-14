@@ -1,63 +1,149 @@
-// src/utils/taskUtils.ts
-import type { Task, FilterOptions, Priority } from '../types';
+import type { Task, FilterOptions, Priority } from "../types";
 
-export const generateId = (): string =>
-  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+
+export const generateId = (): string => {
+  const timePart = Date.now().toString(36);
+  const randomPart = Math.random().toString(36).substring(2, 8);
+  return timePart + "-" + randomPart;
+};
+
 
 export const formatDate = (iso?: string): string => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString();
+  if (!iso) {
+    return "";
+  }
+
+  const date = new Date(iso);
+  return date.toLocaleDateString();
 };
 
-export const validateTask = (t: Partial<Task>): { ok: boolean; errors: string[] } => {
-  const errors: string[] = [];
-  if (!t.title || t.title.trim().length === 0) errors.push('Title is required.');
-  if (t.title && t.title.length > 100) errors.push('Title must be under 100 characters.');
-  if (t.dueDate) {
-    const due = new Date(t.dueDate);
-    if (isNaN(due.getTime())) errors.push('Due date is invalid.');
+
+export const validateTask = (
+  task: Partial<Task>
+): { ok: boolean; errors: string[] } => {
+  let errors: string[] = [];
+
+  if (!task.title || task.title.trim().length === 0) {
+    errors.push("Title is required.");
   }
-  return { ok: errors.length === 0, errors };
+
+  if (task.title && task.title.length > 100) {
+    errors.push("Title must be under 100 characters.");
+  }
+
+  if (task.dueDate) {
+    const dueDate = new Date(task.dueDate);
+    if (isNaN(dueDate.getTime())) {
+      errors.push("Due date is invalid.");
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors: errors,
+  };
 };
 
-export const filterTasks = (tasks: Task[], f: FilterOptions): Task[] => {
-  let res = tasks.slice();
 
-  if (f.search && f.search.trim()) {
-    const q = f.search.trim().toLowerCase();
-    res = res.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        (t.description && t.description.toLowerCase().includes(q))
-    );
+
+export const filterTasks = (
+  tasks: Task[],
+  filters: FilterOptions
+): Task[] => {
+  let results: Task[] = [];
+
+  /* Copy tasks into results */
+  for (let i = 0; i < tasks.length; i++) {
+    results.push(tasks[i]);
   }
 
-  if (f.status && f.status !== 'all') {
-    res = res.filter((t) => t.status === f.status);
+  /* Search filter */
+  if (filters.search.trim() !== "") {
+    let query = filters.search.toLowerCase();
+    let searched: Task[] = [];
+
+    for (let i = 0; i < results.length; i++) {
+      const titleMatch = results[i].title
+        .toLowerCase()
+        .includes(query);
+
+    }
+
+    results = searched;
   }
 
-  if (f.priority && f.priority !== 'all') {
-    res = res.filter((t) => t.priority === f.priority);
+  /* Status filter */
+  if (filters.status !== "all") {
+    let statusFiltered: Task[] = [];
+
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].status === filters.status) {
+        statusFiltered.push(results[i]);
+      }
+    }
+
+    results = statusFiltered;
   }
 
-  // Sorting
-  const dir = f.sortDir === 'desc' ? -1 : 1;
-  if (f.sortBy === 'due') {
-    res.sort((a, b) => {
-      const av = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-      const bv = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
-      return (av - bv) * dir;
+  /* Priority filter */
+  if (filters.priority !== "all") {
+    let priorityFiltered: Task[] = [];
+
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].priority === filters.priority) {
+        priorityFiltered.push(results[i]);
+      }
+    }
+
+    results = priorityFiltered;
+  }
+
+  /* Sorting */
+  const direction = filters.sortDir === "desc" ? -1 : 1;
+
+  if (filters.sortBy === "title") {
+    results.sort((a, b) => {
+      return a.title.localeCompare(b.title) * direction;
     });
-  } else if (f.sortBy === 'priority') {
-    const order: Record<Priority, number> = { high: 1, medium: 2, low: 3 };
-    res.sort((a, b) => (order[a.priority] - order[b.priority]) * dir);
-  } else if (f.sortBy === 'title') {
-    res.sort((a, b) => a.title.localeCompare(b.title) * dir);
-  } else {
-    // default: created
-    res.sort((a, b) => (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir);
   }
 
-  return res;
+  if (filters.sortBy === "priority") {
+    const priorityOrder: Record<Priority, number> = {
+      high: 1,
+      medium: 2,
+      low: 3,
+    };
+
+    results.sort((a, b) => {
+      return (
+        (priorityOrder[a.priority] - priorityOrder[b.priority]) *
+        direction
+      );
+    });
+  }
+
+  if (filters.sortBy === "due") {
+    results.sort((a, b) => {
+      const aDate = a.dueDate
+        ? new Date(a.dueDate).getTime()
+        : Infinity;
+
+      const bDate = b.dueDate
+        ? new Date(b.dueDate).getTime()
+        : Infinity;
+
+      return (aDate - bDate) * direction;
+    });
+  }
+
+  if (filters.sortBy === "created") {
+    results.sort((a, b) => {
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
+      return (aTime - bTime) * direction;
+    });
+  }
+
+  return results;
 };

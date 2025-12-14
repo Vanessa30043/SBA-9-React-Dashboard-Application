@@ -13,7 +13,7 @@ export default function App() {
             <div className="kawaii-sub">Vanessa's Project</div>
           </div>
           <div>
-            <button className="kawaii-btn">New Task</button>
+            <button className="kawaii-btn">Let's get stuff done!</button>
           </div>
         </header>
 
@@ -23,10 +23,6 @@ export default function App() {
             {/* Your Dashboard content can go here */}
             <Dashboard />
           </main>
-
-          <aside className="kawaii-side">
-            <div>Sidebar / stats</div>
-          </aside>
         </div>
       </div>
     </div>
