@@ -1,8 +1,4 @@
-\*\*
-
 # React Task Management Dashboard
-
-**Lists, Keys, and Conditionals**
 
 ## Overview
 
@@ -48,7 +44,7 @@ Through building this project, I practiced:
 │   ├── App.tsx
 │   └── main.tsx
 │
-├── public/assets/   # sticker and avatar images
+├── public/assets/   
 ├── README.md
 ├── package.json
 ├── tsconfig.json

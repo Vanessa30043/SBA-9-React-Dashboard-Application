@@ -85,8 +85,8 @@ export const TaskFilter: React.FC<Props> = ({
             }
             style={{ marginLeft: 6 }}
           >
-            <option value="asc">Asc</option>
-            <option value="desc">Desc</option>
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
           </select>
         </label>
 

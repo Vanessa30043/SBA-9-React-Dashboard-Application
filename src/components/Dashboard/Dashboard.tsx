@@ -1,5 +1,5 @@
 // src/components/Dashboard/Dashboard.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Task, FilterOptions } from "../../types";
 import { TaskForm } from "../TaskForm/TaskForm";
 import { TaskFilter } from "../TaskFilter/TaskFilter";
@@ -8,27 +8,27 @@ import { filterTasks, generateId } from "../../utils/taskUtils";
 
 const STORAGE_KEY = "task_dashboard_v1";
 
-const sampleTasks = (): Task[] => [
-  {
-    id: generateId(),
-    title: "Welcome: edit or delete me",
-    description: "This is an example task. Add your own to test.",
-    priority: "medium",
-    status: "todo",
-    createdAt: new Date().toISOString(),
-    dueDate: undefined,
-  },
-];
+const createSampleTasks = (): Task[] => {
+  return [
+    {
+      id: generateId(),
+      title: "Welcome! Edit or delete me",
+      description: "This is your first task",
+      priority: "medium",
+      status: "todo",
+      createdAt: new Date().toISOString(),
+      dueDate: undefined,
+    },
+  ];
+};
 
 export const Dashboard: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw) as Task[];
-      return sampleTasks();
-    } catch {
-      return sampleTasks();
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
     }
+    return createSampleTasks();
   });
 
   const [filter, setFilter] = useState<FilterOptions>({
@@ -39,57 +39,91 @@ export const Dashboard: React.FC = () => {
     sortDir: "asc",
   });
 
-  const [editing, setEditing] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showForm, setShowForm] = useState<boolean>(false);
-  const [themeDark, setThemeDark] = useState<boolean>(
-    () => localStorage.getItem("theme") === "dark"
-  );
+  const [darkTheme, setDarkTheme] = useState<boolean>(false);
 
-  // Persist tasks to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem("theme", themeDark ? "dark" : "light");
-    document.body.style.background = themeDark ? "#111" : "#fff";
-    document.body.style.color = themeDark ? "#f5f5f5" : "#111";
-  }, [themeDark]);
+    document.body.style.backgroundColor = darkTheme ? "#111" : "#fff";
+    document.body.style.color = darkTheme ? "#f5f5f5" : "#111";
+  }, [darkTheme]);
 
-  const visible = useMemo(() => filterTasks(tasks, filter), [tasks, filter]);
+  const visibleTasks = filterTasks(tasks, filter);
 
-  const addOrUpdate = (task: Task) => {
-    setTasks((prev) => {
-      const idx = prev.findIndex((p) => p.id === task.id);
-      if (idx >= 0) {
-        const copy = prev.slice();
-        copy[idx] = task;
-        return copy;
+  let totalTasks = tasks.length;
+  let completedTasks = 0;
+  let todoTasks = 0;
+
+  for (let i = 0; i < tasks.length; i++) {
+    if (tasks[i].status === "done") {
+      completedTasks++;
+    } else {
+      todoTasks++;
+    }
+  }
+
+  const addOrUpdateTask = (task: Task) => {
+    let updatedTasks: Task[] = [];
+    let found = false;
+
+    for (let i = 0; i < tasks.length; i++) {
+      if (tasks[i].id === task.id) {
+        updatedTasks.push(task);
+        found = true;
+      } else {
+        updatedTasks.push(tasks[i]);
       }
-      return [task, ...prev];
-    });
-    setEditing(null);
+    }
+
+    if (!found) {
+      updatedTasks = [task, ...tasks];
+    }
+
+    setTasks(updatedTasks);
+    setEditingTask(null);
     setShowForm(false);
   };
 
-  const handleDelete = (id: string) =>
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+  const deleteTask = (id: string) => {
+    let remainingTasks: Task[] = [];
 
-  const toggleStatus = (id: string) =>
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-        const next = t.status === "done" ? "todo" : "done";
-        return { ...t, status: next };
-      })
-    );
+    for (let i = 0; i < tasks.length; i++) {
+      if (tasks[i].id !== id) {
+        remainingTasks.push(tasks[i]);
+      }
+    }
 
-  const handleEdit = (task: Task) => {
-    setEditing(task);
+    setTasks(remainingTasks);
+  };
+
+  const toggleTaskStatus = (id: string) => {
+    let updatedTasks: Task[] = [];
+
+    for (let i = 0; i < tasks.length; i++) {
+      if (tasks[i].id === id) {
+        const updatedTask: Task = {
+          ...tasks[i],
+          status: tasks[i].status === "done" ? "todo" : "done",
+        };
+        updatedTasks.push(updatedTask);
+      } else {
+        updatedTasks.push(tasks[i]);
+      }
+    }
+
+    setTasks(updatedTasks);
+  };
+
+  const startEditing = (task: Task) => {
+    setEditingTask(task);
     setShowForm(true);
   };
 
-  const clearFilters = () =>
+  const clearFilters = () => {
     setFilter({
       search: "",
       status: "all",
@@ -97,149 +131,68 @@ export const Dashboard: React.FC = () => {
       sortBy: "created",
       sortDir: "asc",
     });
-
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(tasks, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "tasks-export.json";
-    a.click();
-    URL.revokeObjectURL(url);
   };
-
-  const importData = (file: File | null) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(reader.result as string) as Task[];
-        // Basic validation: ensure items have id and title
-        const valid = parsed.filter((p) => p && p.id && p.title);
-        setTasks(valid);
-      } catch (err) {
-        alert("Import failed: invalid JSON.");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  // stats
-  const stats = useMemo(() => {
-    const total = tasks.length;
-    const done = tasks.filter((t) => t.status === "done").length;
-    const backlog = tasks.filter((t) => t.status === "todo").length;
-    return { total, done, backlog };
-  }, [tasks]);
 
   return (
-    <div style={{ maxWidth: 980, margin: "20px auto", padding: 12 }}>
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h1>Task Dashboard</h1>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div>
-            <button
-              onClick={() => {
-                setShowForm((s) => !s);
-                setEditing(null);
-              }}
-            >
-              {showForm ? "Hide Form" : "New Task"}
-            </button>
-          </div>
+    <div style={{ maxWidth: 1000, margin: "20px auto", padding: 16 }}>
+      <header style={{ display: "flex", justifyContent: "space-between" }}>
+        <h1>Task Management Dashboard</h1>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div>
+          <button
+            onClick={() => {
+              setShowForm(!showForm);
+              setEditingTask(null);
+            }}
+          >
+            {showForm ? "Close Form" : "Add Task"}
+          </button>
+
+          <label style={{ marginLeft: 12 }}>
             <input
               type="checkbox"
-              checked={themeDark}
-              onChange={(e) => setThemeDark(e.target.checked)}
+              checked={darkTheme}
+              onChange={(e) => setDarkTheme(e.target.checked)}
             />
-            Dark
+            Dark Mode
           </label>
         </div>
       </header>
 
       <section
-        style={{
-          display: "grid",
-          gap: 12,
-          gridTemplateColumns: "1fr 320px",
-          marginTop: 12,
-        }}
+        style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}
       >
         <main>
-          {/* Filters */}
           <TaskFilter
             value={filter}
             onChange={setFilter}
             clearFilters={clearFilters}
           />
 
-          <div style={{ marginTop: 12 }}>
-            {showForm && (
-              <TaskForm
-                initial={editing ?? undefined}
-                onSave={addOrUpdate}
-                onCancel={() => {
-                  setShowForm(false);
-                  setEditing(null);
-                }}
-              />
-            )}
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <TaskList
-              tasks={visible}
-              onToggleStatus={toggleStatus}
-              onDelete={handleDelete}
-              onEdit={handleEdit}
+          {showForm && (
+            <TaskForm
+              initial={editingTask ?? undefined}
+              onSave={addOrUpdateTask}
+              onCancel={() => {
+                setShowForm(false);
+                setEditingTask(null);
+              }}
             />
-          </div>
+          )}
+
+          <TaskList
+            tasks={visibleTasks}
+            onToggleStatus={toggleTaskStatus}
+            onDelete={deleteTask}
+            onEdit={startEditing}
+          />
         </main>
 
-        <aside>
-          <div
-            style={{ border: "1px solid #eee", padding: 12, borderRadius: 8 }}
-          >
-            <h3>Stats</h3>
-            <div>Total: {stats.total}</div>
-            <div>Done: {stats.done}</div>
-            <div>Backlog: {stats.backlog}</div>
-
-            <hr style={{ margin: "8px 0" }} />
-
-            <h4>Data</h4>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <button onClick={exportData}>Export</button>
-              <label
-                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-              >
-                Import
-                <input
-                  type="file"
-                  accept=".json,application/json"
-                  onChange={(e) =>
-                    importData(e.target.files ? e.target.files[0] : null)
-                  }
-                />
-              </label>
-            </div>
-
-            <hr style={{ margin: "8px 0" }} />
-            <div style={{ fontSize: 12, color: "#666" }}>
-              Tip: export before importing if you want a backup. Imported file
-              should be an array of tasks.
-            </div>
-          </div>
+        <aside style={{ border: "1px solid #ddd", padding: 12 }}>
+          <h3>Task Stats</h3>
+          <p>Total: {totalTasks}</p>
+          <p>Completed: {completedTasks}</p>
+          <p>To Do: {todoTasks}</p>
         </aside>
       </section>
     </div>
